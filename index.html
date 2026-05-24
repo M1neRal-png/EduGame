@@ -298,15 +298,17 @@ function ExploreSection() {
       try {
         setIsLoading(true);
         
-        // Tembak URL NASA secara langsung tanpa Proxy gratisan agar tidak Timeout
-        const nasaApiUrl = "https://exoplanetarchive.ipac.caltech.edu/cgi-bin/nstedAPI/nph-nstedAPI?table=pscomppars&select=pl_name,pl_rade,pl_bmasse,pl_eqt,sy_dist,hostname,discoverymethod,disc_year&where=pl_rade>0&format=json";
+        // 1. Siapkan URL NASA
+        const rawNasaUrl = "https://exoplanetarchive.ipac.caltech.edu/cgi-bin/nstedAPI/nph-nstedAPI?table=pscomppars&select=pl_name,pl_rade,pl_bmasse,pl_eqt,sy_dist,hostname,discoverymethod,disc_year&where=pl_rade>0&format=json";
         
-        const response = await fetch(nasaApiUrl);
-        if (!response.ok) throw new Error("Gagal terhubung ke server NASA");
+        // 2. Bungkus URL NASA dengan Proxy khusus agar GitHub Pages tidak diblokir oleh browser
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(rawNasaUrl)}`;
+        
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error("Koneksi Proxy ke NASA diblokir atau gagal");
         
         const data = await response.json();
         
-        // Memproses seluruh 5.500+ data dari API
         const livePlanets = data.map((p, index) => {
           let type = "Unknown";
           if (p.pl_rade < 1.25) type = "Earth-sized";
@@ -333,12 +335,10 @@ function ExploreSection() {
           };
         });
 
-        // MASUKKAN SELURUH DATA API KE DALAM WEB
         setPlanetsData(livePlanets);
       } catch (error) {
         console.error("API Error:", error);
-        // Memunculkan pop-up jika gagal, lalu pakai 10 data offline sebagai darurat
-        alert("Gagal mendownload 5.500+ data NASA (mungkin karena koneksi lambat). Menampilkan 10 planet offline sebagai cadangan.");
+        alert("Gagal mendownload 5.500+ data NASA (Proxy diblokir/Timeout). Menampilkan 10 planet offline sebagai cadangan.");
         setPlanetsData(EXOPLANETS); 
       } finally {
         setIsLoading(false);
