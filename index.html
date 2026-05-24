@@ -293,24 +293,27 @@ function ExploreSection() {
   const [planetsData, setPlanetsData] = useState([]); 
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
+ useEffect(() => {
     const fetchNASAData = async () => {
       try {
         setIsLoading(true);
         
-        // 1. Siapkan URL NASA
-        const rawNasaUrl = "https://exoplanetarchive.ipac.caltech.edu/cgi-bin/nstedAPI/nph-nstedAPI?table=pscomppars&select=pl_name,pl_rade,pl_bmasse,pl_eqt,sy_dist,hostname,discoverymethod,disc_year&where=pl_rade>0&format=json";
+        // 1. Menggunakan NASA TAP API (Jalur Modern)
+        // Filter default_flag=1 memastikan kita hanya mengambil 1 entri utama per planet (tanpa duplikat referensi), jadi file jauh lebih ringan.
+        const tapQuery = "select pl_name,pl_rade,pl_bmasse,pl_eqt,sy_dist,hostname,discoverymethod,disc_year from ps where default_flag=1 and pl_rade>0";
+        const nasaApiUrl = `https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query=${encodeURIComponent(tapQuery)}&format=json`;
         
-        // 2. Bungkus URL NASA dengan Proxy khusus agar GitHub Pages tidak diblokir oleh browser
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(rawNasaUrl)}`;
+        // 2. Tembak langsung ke server NASA (Tanpa Proxy!)
+        const response = await fetch(nasaApiUrl);
         
-        const response = await fetch(proxyUrl);
-        if (!response.ok) throw new Error("Koneksi Proxy ke NASA diblokir atau gagal");
+        if (!response.ok) throw new Error("Gagal mengambil data dari server NASA TAP");
         
         const data = await response.json();
         
+        // 3. Petakan datanya ke struktur UI
         const livePlanets = data.map((p, index) => {
           let type = "Unknown";
+          // pl_rade adalah satuan Earth Radius
           if (p.pl_rade < 1.25) type = "Earth-sized";
           else if (p.pl_rade < 2.0) type = "Super-Earth";
           else if (p.pl_rade < 6.0) type = "Mini-Neptune";
@@ -325,6 +328,7 @@ function ExploreSection() {
             radius: p.pl_rade ? p.pl_rade.toFixed(2) : "?", 
             mass: p.pl_bmasse ? p.pl_bmasse.toFixed(2) : "?",
             temp: temp ? Math.round(temp) : "?", 
+            // sy_dist adalah jarak dalam Parsecs, kita kalikan 3.26156 untuk jadi Light-Years
             distance: p.sy_dist ? Math.round(p.sy_dist * 3.26156) : "?",
             star: p.hostname || "Unknown Star", 
             method: p.discoverymethod || "Unknown",
@@ -335,15 +339,17 @@ function ExploreSection() {
           };
         });
 
+        // Masukkan ribuan data bersih ke dalam state web
         setPlanetsData(livePlanets);
       } catch (error) {
         console.error("API Error:", error);
-        alert("Gagal mendownload 5.500+ data NASA (Proxy diblokir/Timeout). Menampilkan 10 planet offline sebagai cadangan.");
+        alert("Gagal terhubung ke NASA TAP API. Menampilkan 10 planet offline sebagai cadangan.");
         setPlanetsData(EXOPLANETS); 
       } finally {
         setIsLoading(false);
       }
     };
+    
     fetchNASAData();
   }, []);
 
